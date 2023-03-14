@@ -4,6 +4,15 @@ My project is going to be a simple rpg game based on story from the movie
 "Star Wars: A New Hope". It will consist of approximately 10 levels in which
 the player will have to face opponents.
 
+INSTALLATION
+===
+- you need to install pygame library at your device:
+    1. Open the command prompt/terminal on your computer.
+    2. Type the following command: pip install pygame and hit Enter.  
+    This command will download and install Pygame along with its dependencies.
+    
+    Note: If you're using Python 3, you may need to use pip3 instead of pip.
+
 TODO
 ====
 
