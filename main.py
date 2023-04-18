@@ -7,7 +7,7 @@ from os.path import isfile, join
 pygame.init()
 
 pygame.display.set_caption("STARWARS")
-WIDTH, HEIGHT = 1200,600
+WIDTH, HEIGHT = 1280,600
 FPS = 60
 PLAYER_VEL = 5
 
@@ -39,6 +39,13 @@ def load_sprite_sheets(dir1, width, height, direction = False):
             all_sprites[image.replace(".png", "")] = sprites
     return all_sprites  
 
+def get_block(size):
+    path = join("miejsca","piasek.png")
+    image = pygame.image.load(path).convert_alpha()
+    surface = pygame.Surface((size, size), pygame.SRCALPHA, 32)
+    rect = pygame.Rect(0, 0, size, size)
+    surface.blit(image, (0, 0), rect)
+    return surface 
 
 class Player(pygame.sprite.Sprite):
     COLOR = (255, 0, 0)
@@ -99,18 +106,18 @@ class Player(pygame.sprite.Sprite):
 class Object(pygame.sprite.Sprite):
     def __init__(self, x, y, width, height, name = None):
         super().__init__()
-        self.react = pygame.Rect(x, y, width, height)
+        self.rect = pygame.Rect(x, y, width, height)
         self.image = pygame.Surface((width, height),pygame.SRCALPHA)
         self.width = width
         self.height = height
         self.name = name
     def draw(self, win):
-        win.bilt(self.image, (self.rect.x, self.rect.y))
+        win.blit(self.image, (self.rect.x, self.rect.y))
 
 class Block(Object):
     def __init__(self, x, y, size):
         super().__init__(x, y, size, size)
-        block = load_block(size)
+        block = get_block(size)
         self.image.blit(block, (0,0))
         self.mask = pygame.mask.from_surface(self.image)
 
@@ -120,8 +127,11 @@ def get_background(name):
     background = pygame.transform.scale(image, (WIDTH, HEIGHT))
     return background
 
-def draw(window, background, player):
+def draw(window, background, player, objects):
     window.blit(background,(0,0)) 
+
+    for obj in objects:
+        obj.draw(window)
 
     player.draw(window)
     pygame.display.update()
@@ -139,7 +149,11 @@ def main(window):
     clock = pygame.time.Clock()
     background = get_background("tatoine.jpg")    
 
+    block_size = 64
+
     player = Player(100, 100, 112, 210)
+    blocks = [Block(i * block_size, HEIGHT - block_size, block_size) for i in range(20
+                                                                                    )]
 
     run = True
     while run:
@@ -152,7 +166,7 @@ def main(window):
     
         player.loop(FPS)
         handle_move(player)
-        draw(window, background, player)
+        draw(window, background, player, blocks)
     pygame.quit()
     quit()
 
