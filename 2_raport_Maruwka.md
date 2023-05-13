@@ -15,3 +15,20 @@ TODO
     only for walking, but also shooting, using lightsabers and jumping
  - create battle mechanics
  - add movie soundtrack
+
+ARCHIVE
+===
+Udpate 17.03
+ - I created Darth Vader and Obi-Wan Kenobi images
+Udpate 21.03 
+ - I created Leia Organa image
+Udpate 26.03
+ - I created Han Solo image
+Udpate 01.04
+ - I created Chewbacca image and Han Solo spritesheet
+Udpate 06.04
+ - I wrote main.py which is now main file of the project
+Udpate 12.04
+ - I added Block and Object classes to main.py
+
+https://github.com/brunomaruwka1/projekt_python.git
