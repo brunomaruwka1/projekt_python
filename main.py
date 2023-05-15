@@ -53,10 +53,12 @@ def get_block(size):
 class Player(pygame.sprite.Sprite):
     COLOR = (255, 0, 0)
     GRAVITY = 1
-    SPRITES = load_sprite_sheets("han_solo", 112, 210, True)
     ANIMATION_DELAY = 10
 
-    def __init__(self, x, y, width, height):
+    def __init__(self, x, y, width, height, max_health, name):
+        super().__init__()
+        self.SPRITES = load_sprite_sheets(name, width, height, True)
+        self.name = name
         self.rect = pygame.Rect(x, y, width, height)
         self.x_vel = 0
         self.y_vel = 0
@@ -65,9 +67,13 @@ class Player(pygame.sprite.Sprite):
         self.animation_count = 0
         self.fall_count = 0
         self.jump_count = 0
+        self.shot_count = 0
+        self.max_health = max_health
+        self.actual_health = max_health
+        
 
     def jump(self):
-        self.y_vel = -self.GRAVITY * 5
+        self.y_vel = -self.GRAVITY * 8
         self.animation_count = 0
         self.jump_count += 1
         if self.jump_count == 1:
@@ -102,16 +108,17 @@ class Player(pygame.sprite.Sprite):
         self.jump_count = 0
 
     def udpate_sprite(self):
-        sprite_sheet = "han_solo_standing"
+        sprite_sheet = "standing"
         if self.x_vel != 0:
-            sprite_sheet = "han_solo" 
+            sprite_sheet = self.name
+        if self.shot_count == 1:
+            sprite_sheet = "shot"
         if self.y_vel != 0:
-            if self.jump_count == 1:
+            if self.jump_count >= 1:
                 sprite_sheet = "jump"
-                
-
-             
-
+            
+            
+        
         sprite_sheet_name = sprite_sheet + "_" + self.direction
         sprites = self.SPRITES[sprite_sheet_name]
         sprite_index = (self.animation_count // self.ANIMATION_DELAY) % len(sprites)
@@ -125,6 +132,13 @@ class Player(pygame.sprite.Sprite):
 
     def draw(self, win):
         win.blit(self.sprite, (self.rect.x, self.rect.y))
+
+    def create_bullet(self):
+        if self.direction == "left":
+            return Bullet(self.rect.left, self.rect.centery -20 , self.direction)
+        if self.direction == "right":
+            return Bullet(self.rect.right, self.rect.centery -20 , self.direction)
+        
 
 
 class Object(pygame.sprite.Sprite):
@@ -146,19 +160,57 @@ class Block(Object):
         self.image.blit(block, (0,0))
         self.mask = pygame.mask.from_surface(self.image)
 
+class Bullet(pygame.sprite.Sprite):
+    # Initialize the bullet object
+    def __init__(self, pos_x, pos_y, direction):
+        super().__init__()
+        self.image = pygame.Surface((10, 5))
+        self.image.fill((255, 0, 0))
+        self.rect = self.image.get_rect()
+        self.rect.x = pos_x
+        self.rect.y = pos_y
+        self.speed = 8 # the speed of the bullet
+        self.direction = direction
+
+    # Update the bullet's position
+    def update(self):
+        if self.direction == 'left':
+            self.rect.x -= self.speed # move the bullet to the right
+        elif self.direction == 'right':
+            self.rect.x += self.speed # move the bullet to the right
 
 def get_background(name):
     image = pygame.image.load(os.path.join('miejsca',name))
     background = pygame.transform.scale(image, (WIDTH, HEIGHT))
     return background
 
-def draw(window, background, player, objects):
+def draw(window, background, player, enemy, second_enemy, objects, bullet_group,
+         enemy_bullet_group):
     window.blit(background,(0,0)) 
 
     for obj in objects:
         obj.draw(window)
 
-    player.draw(window)
+    hp_bars(player, 50, 50, enemy_bullet_group)
+    hp_bars(enemy, WIDTH - 200, 50, bullet_group)
+    hp_bars(second_enemy, WIDTH - 200, 90, bullet_group)
+    if player.actual_health < 0:
+        player.kill()
+    else:
+        player.draw(window)
+    if enemy.actual_health < 0:
+        enemy.kill()
+    else:
+        enemy.draw(window)
+    if second_enemy.actual_health < 0:
+        second_enemy.kill()
+    else:
+        second_enemy.draw(window)
+    
+    bullet_group.draw(window)
+    enemy_bullet_group.draw(window)
+    bullet_group.update()
+    enemy_bullet_group.update()
     pygame.display.update()
 
 def handle_vertical_collision(player, objects, dy):
@@ -172,7 +224,13 @@ def handle_vertical_collision(player, objects, dy):
         collided_objects.append(obj)
     return collided_objects
 
-def handle_move(player, objects):
+def getting_shot(player, bullet_group):
+    for bullet in bullet_group:
+        if pygame.sprite.collide_mask(player, bullet) and player.actual_health >= 0:
+            player.actual_health -= 10
+            bullet_group.remove(bullet)
+
+def handle_move(player, enemy, second_enemy, objects):
     keys = pygame.key.get_pressed()
 
     player.x_vel = 0
@@ -180,8 +238,17 @@ def handle_move(player, objects):
         player.move_left(PLAYER_VEL)
     if keys[pygame.K_d]:
         player.move_right(PLAYER_VEL)
+    
 
     handle_vertical_collision(player, objects, player.y_vel)
+    handle_vertical_collision(enemy, objects, enemy.y_vel)
+    handle_vertical_collision(second_enemy, objects, enemy.y_vel)
+
+def hp_bars(player, x, y, bullet_group):
+    getting_shot(player, bullet_group)
+    ratio = player.actual_health / player.max_health
+    pygame.draw.rect(window, "red",(x, y, 150, 20))
+    pygame.draw.rect(window, "green",(x, y, 150 * ratio, 20))
 
 def main(window):
     clock = pygame.time.Clock()
@@ -189,13 +256,25 @@ def main(window):
 
     block_size = 32
 
-    player = Player(100, 100, 112, 210)
+    player = Player(100, 100, 112, 210,300, "han_solo")
+    enemy = Player(1100, 100, 133, 168, 100, "jawaa")
+    enemy2 = Player(900, 100, 133, 168, 100, "jawaa")
+    
     blocks = [Block(i * block_size, HEIGHT - block_size, block_size) for i in range(40)]
-                                                                                
+    objects = [*blocks, Block(0, HEIGHT - block_size * 2, block_size)]
+
+    bullet_group = pygame.sprite.Group()
+    enemy_bullet_group = pygame.sprite.Group()
+    number = 0
     run = True
     while run:
         clock.tick(FPS)
-
+        number += 1
+        
+        if number % 120 == 0 and enemy.actual_health > 0:
+            enemy_bullet_group.add(enemy.create_bullet())
+        if number % 120 == 60 and enemy2.actual_health > 0:
+            enemy_bullet_group.add(enemy2.create_bullet())
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -204,11 +283,18 @@ def main(window):
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE and player.jump_count < 2:
                     player.jump()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_k:
+                    bullet_group.add(player.create_bullet())
+                if event.key == pygame.K_j:
+                    player.shot_count = player.shot_count * (-1) + 1
 
-
+        
         player.loop(FPS)
-        handle_move(player,blocks)
-        draw(window, background, player, blocks)
+        enemy.loop(FPS)
+        enemy2.loop(FPS)
+        handle_move(player,enemy,enemy2, objects)
+        draw(window, background, player, enemy, enemy2, objects, bullet_group,enemy_bullet_group)
     pygame.quit()
     quit()
 
