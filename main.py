@@ -1,6 +1,4 @@
 import os
-import random
-import math
 import pygame
 from os import listdir
 from os.path import isfile, join
@@ -55,7 +53,7 @@ class Player(pygame.sprite.Sprite):
     GRAVITY = 1
     ANIMATION_DELAY = 10
 
-    def __init__(self, x, y, width, height, max_health, name):
+    def __init__(self, x, y, width, height, max_health, name, attack_method):
         super().__init__()
         self.SPRITES = load_sprite_sheets(name, width, height, True)
         self.name = name
@@ -70,6 +68,9 @@ class Player(pygame.sprite.Sprite):
         self.shot_count = 0
         self.max_health = max_health
         self.actual_health = max_health
+        self.attack_method = attack_method
+        self.attack_count = 0
+        self.block_count = 0
         
 
     def jump(self):
@@ -109,13 +110,18 @@ class Player(pygame.sprite.Sprite):
 
     def udpate_sprite(self):
         sprite_sheet = "standing"
+        if self.shot_count == 1 and self.attack_method == "shot":
+            sprite_sheet = "shot"
+        if self.attack_count == 1 and self.attack_method == "lightsaber":
+            sprite_sheet = "lightsaber"
+
         if self.x_vel != 0:
             sprite_sheet = self.name
-        if self.shot_count == 1:
-            sprite_sheet = "shot"
         if self.y_vel != 0:
             if self.jump_count >= 1:
                 sprite_sheet = "jump"
+        if self.block_count == 1:
+            sprite_sheet = "block"
             
             
         
@@ -191,9 +197,9 @@ def draw(window, background, player, enemy, second_enemy, objects, bullet_group,
     for obj in objects:
         obj.draw(window)
 
-    hp_bars(player, 50, 50, enemy_bullet_group)
-    hp_bars(enemy, WIDTH - 200, 50, bullet_group)
-    hp_bars(second_enemy, WIDTH - 200, 90, bullet_group)
+    hp_bars(player, 50, 50, enemy_bullet_group, "shot")
+    hp_bars(enemy, WIDTH - 200, 50, player, "lightsaber")
+    hp_bars(second_enemy, WIDTH - 200, 90, player, "lightsaber")
     if player.actual_health < 0:
         player.kill()
     else:
@@ -207,6 +213,8 @@ def draw(window, background, player, enemy, second_enemy, objects, bullet_group,
     else:
         second_enemy.draw(window)
     
+    block_shot(player, bullet_group)
+
     bullet_group.draw(window)
     enemy_bullet_group.draw(window)
     bullet_group.update()
@@ -230,6 +238,19 @@ def getting_shot(player, bullet_group):
             player.actual_health -= 10
             bullet_group.remove(bullet)
 
+def getting_stabbed(player, enemy):
+    if pygame.sprite.collide_mask(player, enemy) and enemy.attack_count == 1:
+        player.actual_health -= 1
+
+def block_shot(player, bullet_group):
+    for bullet in bullet_group:
+        if pygame.sprite.collide_mask(player, bullet) and player.block_count == 1:
+            bullet_group.remove(bullet)
+            if bullet.direction == "left":
+                bullet.direction =="right"
+            if bullet.direction == "right":
+                bullet.direction =="left"
+
 def handle_move(player, enemy, second_enemy, objects):
     keys = pygame.key.get_pressed()
 
@@ -244,21 +265,24 @@ def handle_move(player, enemy, second_enemy, objects):
     handle_vertical_collision(enemy, objects, enemy.y_vel)
     handle_vertical_collision(second_enemy, objects, enemy.y_vel)
 
-def hp_bars(player, x, y, bullet_group):
-    getting_shot(player, bullet_group)
+def hp_bars(player, x, y, bullet_group, attack_method):
+    if attack_method == "shot":
+        getting_shot(player, bullet_group)
+    if attack_method == "lightsaber":
+        getting_stabbed(player, bullet_group)
     ratio = player.actual_health / player.max_health
     pygame.draw.rect(window, "red",(x, y, 150, 20))
     pygame.draw.rect(window, "green",(x, y, 150 * ratio, 20))
 
 def main(window):
     clock = pygame.time.Clock()
-    background = get_background("tatoine.jpg")    
+    background = get_background("ship.jpg")    
 
     block_size = 32
 
-    player = Player(100, 100, 112, 210,300, "han_solo")
-    enemy = Player(1100, 100, 133, 168, 100, "jawaa")
-    enemy2 = Player(900, 100, 133, 168, 100, "jawaa")
+    player = Player(100, 100, 126, 217,300, "luke", "lightsaber")
+    enemy = Player(1100, 100, 133, 168, 100, "jawaa", "shot")
+    enemy2 = Player(900, 100, 133, 168, 100, "jawaa", "shot")
     
     blocks = [Block(i * block_size, HEIGHT - block_size, block_size) for i in range(40)]
     objects = [*blocks, Block(0, HEIGHT - block_size * 2, block_size)]
@@ -273,8 +297,16 @@ def main(window):
         
         if number % 120 == 0 and enemy.actual_health > 0:
             enemy_bullet_group.add(enemy.create_bullet())
+            # player.block_count = 0
         if number % 120 == 60 and enemy2.actual_health > 0:
             enemy_bullet_group.add(enemy2.create_bullet())
+        if number % 5 == 0:
+            player.attack_count = 0
+
+        if enemy.actual_health < 0 and enemy2.actual_health < 0:
+            pygame.quit()
+            print("YOU WON!")  
+            quit()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -284,10 +316,14 @@ def main(window):
                 if event.key == pygame.K_SPACE and player.jump_count < 2:
                     player.jump()
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_k:
+                if event.key == pygame.K_k and player.shot_count == 1 and player.attack_method == "shot":
                     bullet_group.add(player.create_bullet())
-                if event.key == pygame.K_j:
+                if event.key == pygame.K_k and player.attack_method == "shot":
                     player.shot_count = player.shot_count * (-1) + 1
+                if event.key == pygame.K_k and player.attack_method == "lightsaber":
+                    player.attack_count = player.attack_count * (-1) + 1
+                if event.key == pygame.K_b:
+                    player.block_count = player.block_count * (-1) + 1
 
         
         player.loop(FPS)
