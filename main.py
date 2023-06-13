@@ -1,5 +1,6 @@
 import os
 import pygame
+import main2
 from os import listdir
 from os.path import isfile, join
 pygame.init()
@@ -9,6 +10,15 @@ WIDTH, HEIGHT = 1280,600
 FPS = 60
 PLAYER_VEL = 5
 
+CRASH_SOUND = pygame.mixer.Sound("audio\crash.mp3")
+BLASTER_SOUND = pygame.mixer.Sound("audio/blaster.mp3")
+LIGHSTABER_SOUND = pygame.mixer.Sound("audio/lightsaber.mp3")
+
+font = pygame.font.SysFont("arialwhite", 40)
+
+def draw_text(text, font, text_col, x, y):
+    img = font.render(text, True, text_col)
+    window.blit(img, (x,y))
 
 
 window = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -110,6 +120,8 @@ class Player(pygame.sprite.Sprite):
 
     def udpate_sprite(self):
         sprite_sheet = "standing"
+        if self.block_count == 1:
+            sprite_sheet = "block"
         if self.shot_count == 1 and self.attack_method == "shot":
             sprite_sheet = "shot"
         if self.attack_count == 1 and self.attack_method == "lightsaber":
@@ -120,8 +132,6 @@ class Player(pygame.sprite.Sprite):
         if self.y_vel != 0:
             if self.jump_count >= 1:
                 sprite_sheet = "jump"
-        if self.block_count == 1:
-            sprite_sheet = "block"
             
             
         
@@ -139,11 +149,11 @@ class Player(pygame.sprite.Sprite):
     def draw(self, win):
         win.blit(self.sprite, (self.rect.x, self.rect.y))
 
-    def create_bullet(self):
+    def create_bullet(self, direction):
         if self.direction == "left":
-            return Bullet(self.rect.left, self.rect.centery -20 , self.direction)
+            return Bullet(self.rect.left, self.rect.centery -20 , direction)
         if self.direction == "right":
-            return Bullet(self.rect.right, self.rect.centery -20 , self.direction)
+            return Bullet(self.rect.right, self.rect.centery -20 , direction)
         
 
 
@@ -180,9 +190,9 @@ class Bullet(pygame.sprite.Sprite):
 
     # Update the bullet's position
     def update(self):
-        if self.direction == 'left':
+        if self.direction == "left":
             self.rect.x -= self.speed # move the bullet to the right
-        elif self.direction == 'right':
+        elif self.direction == "right":
             self.rect.x += self.speed # move the bullet to the right
 
 def get_background(name):
@@ -197,9 +207,9 @@ def draw(window, background, player, enemy, second_enemy, objects, bullet_group,
     for obj in objects:
         obj.draw(window)
 
-    hp_bars(player, 50, 50, enemy_bullet_group, "shot")
-    hp_bars(enemy, WIDTH - 200, 50, player, "lightsaber")
-    hp_bars(second_enemy, WIDTH - 200, 90, player, "lightsaber")
+    hp_bars(player,enemy, 50, 50, bullet_group, enemy_bullet_group, "lightsaber")
+    hp_bars(enemy, player, WIDTH - 200, 50, enemy_bullet_group, bullet_group,"shot")
+    hp_bars(second_enemy, player, WIDTH - 200, 90, enemy_bullet_group, bullet_group,"shot")
     if player.actual_health < 0:
         player.kill()
     else:
@@ -213,7 +223,6 @@ def draw(window, background, player, enemy, second_enemy, objects, bullet_group,
     else:
         second_enemy.draw(window)
     
-    block_shot(player, bullet_group)
 
     bullet_group.draw(window)
     enemy_bullet_group.draw(window)
@@ -242,14 +251,17 @@ def getting_stabbed(player, enemy):
     if pygame.sprite.collide_mask(player, enemy) and enemy.attack_count == 1:
         player.actual_health -= 1
 
-def block_shot(player, bullet_group):
-    for bullet in bullet_group:
+def block_shot(player, bullet_group, enemy_bullet_group):
+    for bullet in enemy_bullet_group:
         if pygame.sprite.collide_mask(player, bullet) and player.block_count == 1:
-            bullet_group.remove(bullet)
+            enemy_bullet_group.remove(bullet)
             if bullet.direction == "left":
-                bullet.direction =="right"
+                bullet_group.add(player.create_bullet("right"))
             if bullet.direction == "right":
-                bullet.direction =="left"
+                bullet_group.add(player.create_bullet("right"))
+            CRASH_SOUND.play()    
+                
+                
 
 def handle_move(player, enemy, second_enemy, objects):
     keys = pygame.key.get_pressed()
@@ -265,18 +277,21 @@ def handle_move(player, enemy, second_enemy, objects):
     handle_vertical_collision(enemy, objects, enemy.y_vel)
     handle_vertical_collision(second_enemy, objects, enemy.y_vel)
 
-def hp_bars(player, x, y, bullet_group, attack_method):
-    if attack_method == "shot":
-        getting_shot(player, bullet_group)
+def hp_bars(player, enemy, x, y, bullet_group, enemy_bullet_group, attack_method = ""):
     if attack_method == "lightsaber":
-        getting_stabbed(player, bullet_group)
+        block_shot(player, bullet_group, enemy_bullet_group)
+        getting_shot(player, enemy_bullet_group)
+    if attack_method == "shot":
+        getting_shot(player, enemy_bullet_group)
+        getting_stabbed(player, enemy)
+
     ratio = player.actual_health / player.max_health
     pygame.draw.rect(window, "red",(x, y, 150, 20))
     pygame.draw.rect(window, "green",(x, y, 150 * ratio, 20))
 
 def main(window):
     clock = pygame.time.Clock()
-    background = get_background("ship.jpg")    
+    background = get_background("tatooine.jpg")    
 
     block_size = 32
 
@@ -285,28 +300,39 @@ def main(window):
     enemy2 = Player(900, 100, 133, 168, 100, "jawaa", "shot")
     
     blocks = [Block(i * block_size, HEIGHT - block_size, block_size) for i in range(40)]
-    objects = [*blocks, Block(0, HEIGHT - block_size * 2, block_size)]
+
 
     bullet_group = pygame.sprite.Group()
     enemy_bullet_group = pygame.sprite.Group()
     number = 0
+    number2 = 0
     run = True
     while run:
         clock.tick(FPS)
         number += 1
+        number2 += 1
         
+
         if number % 120 == 0 and enemy.actual_health > 0:
-            enemy_bullet_group.add(enemy.create_bullet())
+            enemy_bullet_group.add(enemy.create_bullet("left"))
+            BLASTER_SOUND.play()
             # player.block_count = 0
         if number % 120 == 60 and enemy2.actual_health > 0:
-            enemy_bullet_group.add(enemy2.create_bullet())
-        if number % 5 == 0:
+            enemy_bullet_group.add(enemy2.create_bullet("left"))
+            BLASTER_SOUND.play()
+            
+
+        if number2 % 5 == 0:
             player.attack_count = 0
+        if number2 % 20 == 0:
+            player.block_count = 0
 
         if enemy.actual_health < 0 and enemy2.actual_health < 0:
-            pygame.quit()
             print("YOU WON!")  
-            quit()
+            main2.main(window)
+        if player.actual_health < 0:
+            pygame.quit()
+            print("YOU LOST")
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
@@ -319,20 +345,26 @@ def main(window):
                 if event.key == pygame.K_k and player.shot_count == 1 and player.attack_method == "shot":
                     bullet_group.add(player.create_bullet())
                 if event.key == pygame.K_k and player.attack_method == "shot":
+                    number2 = 0
                     player.shot_count = player.shot_count * (-1) + 1
                 if event.key == pygame.K_k and player.attack_method == "lightsaber":
+                    number2 = 0
+                    LIGHSTABER_SOUND.play()
                     player.attack_count = player.attack_count * (-1) + 1
                 if event.key == pygame.K_b:
                     player.block_count = player.block_count * (-1) + 1
+            
 
         
         player.loop(FPS)
         enemy.loop(FPS)
         enemy2.loop(FPS)
-        handle_move(player,enemy,enemy2, objects)
-        draw(window, background, player, enemy, enemy2, objects, bullet_group,enemy_bullet_group)
+        handle_move(player,enemy,enemy2, blocks)
+        draw(window, background, player, enemy, enemy2, blocks, bullet_group,enemy_bullet_group)
+        draw_text("press space to play", font, (255,255,255), 160, 250)
     pygame.quit()
     quit()
+    
 
 if __name__ == "__main__":
     main(window)
