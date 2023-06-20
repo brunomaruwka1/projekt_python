@@ -327,8 +327,7 @@ def main(window):
         if number2 % 20 == 0:
             player.block_count = 0
 
-        if enemy.actual_health < 0 and enemy2.actual_health < 0:
-            print("YOU WON!")  
+        if enemy.actual_health < 0 and enemy2.actual_health < 0: 
             main2.main(window)
         if player.actual_health < 0:
             pygame.quit()

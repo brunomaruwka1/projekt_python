@@ -1,5 +1,6 @@
 import os
 import pygame
+import main3
 from os import listdir
 from os.path import isfile, join
 pygame.init()
@@ -339,9 +340,7 @@ def main(window):
             print("YOU LOST!")  
             quit()
         if enemy.actual_health < 0:
-            pygame.quit()
-            print("YOU WON!")  
-            quit()
+            main3.main()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
